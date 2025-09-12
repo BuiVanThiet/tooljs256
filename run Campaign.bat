@@ -1,0 +1,1 @@
+cd ./src && node campaign.js --thread=1

@@ -1,0 +1,1 @@
+cd ./src && node index.js --thread=6

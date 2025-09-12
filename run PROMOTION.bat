@@ -1,0 +1,1 @@
+cd ./src && node promotion.js --thread=2

@@ -1,0 +1,1 @@
+cd ./src && node create.js --thread=1
