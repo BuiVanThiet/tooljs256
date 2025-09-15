@@ -3,271 +3,147 @@ import Hidemyacc from "./hidemyacc.js";
 import {
     loginToProfile,
     openPage,
-    closeOldPage,
-    delayTime,
     closeBrowser,
     getIdAcc,
-    runGroupedByKey,
+    processTableData,
     scrollAndClickElement,
-    openProductPage,
-    closeBrowserAndStop,
-    scrollAndClickByText,
-    scrollDownByPixels,
-    splitByComma,
-    clickInputByLabelTextAttribute,
-    parseAttributes,
-    enterDescription,
-    enterInputValue,
-    selectRadioButton,
-    uploadFileToPage,
-    scrollAndHoverElement,
-    uploadFile,
-    scrollAndHoverByText,
     checkIfElementIsDisabled,
-    fillInput,
-    getFormattedDate,
-    parseSizes,
-    extractTextFromElements,
-    scrollToBottom,
-    smoothScrollToTop
+    waitForElement,
+    fillInput, delayTime
 } from "../src/service/BaseToolService.js";
-import { readExcelFile,processCategoriesToArray } from "../src/service/openFileExcel.js";
+import { readExcelFile } from "../src/service/openFileExcel.js";
 
 const hide = new Hidemyacc();
 
 // Đọc file Excel
-const products = readExcelFile("InputFLS.xlsx");
-//
-// // ✅ Gom sản phẩm theo 'Name Acc'
-// const groupedByAcc = {};
-// for (const product of products) {
-//     const nameAcc = product["Name Acc"]?.trim() || "notData";
-//     if (!groupedByAcc[nameAcc]) {
-//         groupedByAcc[nameAcc] = [];
-//     }
-//     groupedByAcc[nameAcc].push(product);
-// }
-//
-// // ✅ Với mỗi account → chạy tuần tự các sản phẩm của nó
-// const accTasks = Object.entries(groupedByAcc).map(([nameAcc, productList]) => {
-//     return (async () => {
-//         console.log(`\n🚀 Bắt đầu xử lý account: ${nameAcc}`);
-//
-//         for (const [index, product] of productList.entries()) {
-//             try {
-//                 console.log("🔄 Product:", product);
-//
-//                 const profileId = await getIdAcc(nameAcc);
-//                 const { browser, context } = await loginToProfile(hide, profileId, index);
-//
-//                 if (!browser || !context) {
-//                     console.warn(`⚠️ Không thể khởi tạo trình duyệt cho ${nameAcc}`);
-//                     continue;
-//                 }
-//
-//                 const newPage = await openPage(context, 'https://www.tiktok.com/t/ZP8hg4BR2/', {
-//                     waitUntil: "load",
-//                     timeout: 60000
-//                 });
-//
-//                 await closeOldPage(context);
-//                 await delayTime(10000);
-//                 await closeBrowser(nameAcc);
-//
-//                 console.log(`✅ Đã xong 1 sản phẩm của ${nameAcc}`);
-//             } catch (e) {
-//                 console.error(`❌ Lỗi với ${nameAcc}:`, e);
-//             }
-//         }
-//
-//         console.log(`🏁 Đã hoàn tất toàn bộ sản phẩm cho ${nameAcc}\n`);
-//     })();
-// });
-//
-// // ✅ Chạy song song theo từng acc, bên trong thì tuần tự
-// await Promise.all(accTasks);
-// Gọi hàm xử lý các tài khoản, delay 5s giữa các sản phẩm cùng một acc
-await runGroupedByKey(
-    products,
-    "Name Acc", // field dùng để gom nhóm
-    async (product, index, nameAcc, x, y) => {
-        // const data = JSON.stringify(product, null, 2);
-        const profileId = await getIdAcc(nameAcc);
-        console.log(JSON.stringify(product, null, 2))
+const products = readExcelFile("InputDuplicateFLS.xlsx");
 
-        const { browser, context } = await loginToProfile(hide, profileId, { x, y });
+// Hàm để chia tài khoản thành các nhóm tối đa 3 tài khoản
+function chunkArray(array, size) {
+    const result = [];
+    for (let i = 0; i < array.length; i += size) {
+        result.push(array.slice(i, i + size));
+    }
+    return result;
+}
+
+const accGroups = chunkArray(products, 3);  // Chia nhóm tài khoản thành các nhóm tối đa 3 tài khoản
+
+// Hàm xử lý một nhóm tài khoản
+async function processAccountGroup(group) {
+    const promises = group.map(async (product, index) => {
+        // Cập nhật tọa độ x cho mỗi tài khoản
+        const toaDoX = index * 1200; // Tăng dần theo tài khoản: 0, 1200, 2400, ...
+
+        const profileId = await getIdAcc(product["Name Acc"]);
+        console.log(`Processing account: ${product["Name Acc"]}`);
+        console.log(`Position for account ${product["Name Acc"]}: { x: ${toaDoX}, y: 0 }`);  // Kiểm tra giá trị x
+
+        const { browser, context } = await loginToProfile(hide, profileId, { x: toaDoX, y: 0 });
+
         if (!browser || !context) return;
+        console.log(product)
 
-        // Sử dụng vị trí x, y khi mở trình duyệt
-        const page = await openPage(context, 'https://seller-us.tiktok.com/promotion/marketing-tools/regular-flash-sale/create', {
+        const page = await openPage(context, product["Link Duplicate"], {
             waitUntil: 'load',
-            timeout: 60000
+            timeout: 120000
         });
-        // await setTimeLine(page,1);
-        // await setTimeLine(page,2);
-        await delayTime(5000);
-        await fillInput(page, "input#name_input", (product["Name sale"]));
+        const isElementFound = await waitForElement(page, 'div#name input', 10000); // Chờ tối đa 10s
+
+        if (!isElementFound) {
+            console.log('No element found within 10 seconds, breaking out.');
+            await closeBrowser(product["Name Acc"]);
+        }
+
+        await fillInput(page,"div#name input",product["Name sale"])
+        await delayTime(2000);
+
+        if (product["id product"] !== 'notData') {
+            let idProducts = processCategoriesToArray(product["id product"])
+            for (let id of idProducts) {
+                console.log(id)
+                await fillInput(page, "input[data-tid='m4b_input_search']", id);
+                await delayTime(3000);
+                const search = await page.$$("div.theme-arco-input-group-wrapper span.theme-arco-input-group span.theme-arco-input-group-suffix");
+                search[1].click();
+                await delayTime(3000);
+
+                await scrollAndClickElement(page,"tr.theme-arco-table-tr th.theme-arco-table-th div.theme-arco-table-th-item label.theme-arco-checkbox");
+                await delayTime(5000);
+            }
+        }
+
+        let variation = product["Variation\n(Điền số 1: Có;\nĐiền số 2: Không;)"];
+        const elementCheckVariation = await page.$$('div.theme-arco-radio-group label.theme-arco-radio.theme-m4b-radio');
+
+        if (variation === '1') {
+            await elementCheckVariation[1].click();
+        } else {
+            await elementCheckVariation[0].click();
+        }
         await delayTime(3000);
 
-        // await scrollAndClickElement(page,"div.theme-arco-picker-container button.theme-arco-btn");
-        // await delayTime(5000); // Delay 5s giữa các lần mở trang
+        for (let i = 0; i < 100000; i++) {
+            const elementClịckAllProductDiscount = await page.$$('div.theme-arco-radio-group label.theme-arco-radio.theme-m4b-radio');
+            await elementClịckAllProductDiscount[0].click();
+            await delayTime(2000);
 
-        await scrollAndClickElement(page,"div#ProductScope div.bg-white.py-16 div.flex.justify-between.items-center div div button.theme-arco-btn");
-        await delayTime(5000); // Delay 5s giữa các lần mở trang
+            const elementClịckDeal = await page.$$('div.flex.items-center.mt-8 div.theme-m4b-input-group-select div.theme-m4b-select-has-tooltip-error');
+            await elementClịckDeal[0].click();
+            await delayTime(2000);
 
-        // const comboboxCategory = await page.$$("div.theme-arco-cascader[role='combobox']");
-        // if (comboboxCategory.length > 0) {
-        //     // Nhấn vào phần tử đầu tiên (index 0)
-        //     await comboboxCategory[0].click();
-        //     console.log('Clicked on the first element');
-        //     await delayTime(5000);
-        // } else {
-        //     console.error('No elements found');
-        // }
-
-        // let indexStop = processCategoriesToArray(product["Categores"]).length;
-        // let indexClick = 1;
-        // for (let category of processCategoriesToArray(product["Categores"])) {
-        //     if (!category || category.trim() === "") {
-        //         console.log("❌ Encountered empty category. Stopping...");
-        //         break;
-        //     }
-        //     const menuSelector = "ul.theme-arco-cascader-list";
-        //     const itemSelector = "li[role=\'menuitem\']";
-        //     await scrollAndHoverByText(page, menuSelector, itemSelector, category);
-        //     await delayTime(1500);
-        //     indexClick++;
-        //     console.log(indexStop)
-        //     console.log(indexClick)
-        //     if (indexStop < indexClick) {
-        //         await scrollAndClickByText(page, menuSelector, itemSelector, category);
-        //         await delayTime(5000);
-        //     }
-        // }
-
-        let idProducts = processCategoriesToArray(product["Id Product"])
-        for (let id of idProducts) {
-            console.log(id)
-            await fillInput(page, "input[data-tid='m4b_input_search']", id);
-            await delayTime(3000);
-            const search = await page.$$("div.theme-arco-input-group-wrapper span.theme-arco-input-group span.theme-arco-input-group-suffix");
-            search[1].click();
-            await delayTime(3000);
-
-            await scrollAndClickElement(page,"tr.theme-arco-table-tr th.theme-arco-table-th div.theme-arco-table-th-item label.theme-arco-checkbox");
-            await delayTime(5000);
-        }
-
-
-//         await scrollAndClickElement(page,"tr.theme-arco-table-tr th.theme-arco-table-th div.theme-arco-table-th-item label.theme-arco-checkbox");
-//         await delayTime(5000); // Delay 5s giữa các lần mở trang
-        const menuSelectorDone = "div.theme-arco-modal-content div.flex.flex-col.pb-24 div.mt-16";
-        const itemSelectorDone = "button.theme-arco-btn";
-        await scrollAndClickByText(page, menuSelectorDone, itemSelectorDone, 'Done');
-        await delayTime(5000);
-//
-        const menuSelectorVariation = "div.theme-arco-form-item-control-children div.mt-12 div#skuOrSpuRadioGroup div.theme-arco-radio-group";
-        const itemSelectorVariation = "label.theme-arco-radio";
-        let variation = product["Variation\n(Điền số 1: Có;\nĐiền số 2: Không;)"];
-        if (variation === 1) {
-            await scrollAndClickByText(page, menuSelectorVariation, itemSelectorVariation, 'Variation-level');
-        } else {
-            await scrollAndClickByText(page, menuSelectorVariation, itemSelectorVariation, 'Product-level');
-        }
-        await delayTime(5000);
-//
-
-        if ((product["Price reduction"]).toString() !== "notData") {
-            console.log("co gia reduction")
-
-            await scrollAndClickElement(page,"div.theme-arco-table-header table thead tr.theme-arco-table-tr th.theme-arco-table-th div.theme-arco-table-th-item label.theme-arco-checkbox");
-            await delayTime(5000); // Delay 5s giữa các lần mở trang
-
-            await scrollAndClickElement(page,"div.flex.flex-col.items-end.mr-16 div.flex.items-start.flex-col div.flex.items-center.mt-8 div.theme-m4b-input-group-select div.theme-arco-select[role='combobox']");
-            await delayTime(5000); // Delay 5s giữa các lần mở trang
-
-            const menuSelectorDiscountType = "div.theme-arco-select-popup-inner div div";
-            const itemSelectorDiscountType = "li.theme-arco-select-option[role='option']";
+            const elementClickDiscountType = await page.$$('div#theme-arco-select-popup-4 li.theme-arco-select-option');
             let discountType = product["Discount type\n(Điền số 1: %;\nĐiền số 2: tiền;)"];
             if (discountType === 1) {
-                await scrollAndClickByText(page, menuSelectorDiscountType, itemSelectorDiscountType, 'Percentage off');
+                await elementClickDiscountType[1].click();
             } else {
-                await scrollAndClickByText(page, menuSelectorDiscountType, itemSelectorDiscountType, 'Fixed price');
+                await elementClickDiscountType[0].click();
             }
-            await delayTime(5000);
+            await delayTime(2000);
 
-            await fillInput(page, "div.theme-m4b-input-group-select-child div.theme-arco-input-group-wrapper span.theme-arco-input-group span.theme-arco-input-inner-wrapper input[role='spinbutton']", (product["Price reduction"]).toString());
-            await delayTime(3000);
-
-            const menuSelectorUpdateDiscount = "div.mt-16.px-12.py-16.bg-neutral-bg2.rounded div.flex.justify-between.items-end.mt-20 div.flex.items-center";
-            const itemSelectorUpdateDiscount = "button.theme-arco-btn";
-            await scrollAndClickByText(page, menuSelectorUpdateDiscount, itemSelectorUpdateDiscount, 'Batch update');
-            await delayTime(5000); // Delay 5s giữa các lần mở trang
-            if (await checkIfElementIsDisabled(page,"li[aria-label='Next']") === true) {
-                while (true) {
-                    await scrollAndClickElement(page,"div.theme-arco-table-header table thead tr.theme-arco-table-tr th.theme-arco-table-th div.theme-arco-table-th-item label.theme-arco-checkbox");
-                    await delayTime(5000); // Delay 5s giữa các lần mở trang
-
-                    await scrollAndClickByText(page, menuSelectorUpdateDiscount, itemSelectorUpdateDiscount, 'Batch update');
-                    await delayTime(5000); // Delay 5s giữa các lần mở trang
-
-                    if (await checkIfElementIsDisabled(page,"li[aria-label='Next']") === false) {
-                        break;
-                    } else {
-                        await scrollAndClickElement(page,"li[aria-label='Next']");
-                    }
-                }
+            if (i === 0) {
+                await fillInput(page,"div[data-tid=\"m4b_input_group\"] span.theme-arco-input-inner-wrapper.theme-arco-input-inner-wrapper-has-prefix input",product["Price reduction"])
+                await delayTime(2000);
             }
+
+            const elementUpdatePrice = await page.$$('div.flex.justify-between.items-end.mt-20 div.flex.items-center button.theme-arco-btn.theme-arco-btn-secondary');
+            await elementUpdatePrice[0].click();
+            await delayTime(2000);
+
+            if (await checkIfElementIsDisabled(page, "li[aria-label='Next']") === false) {
+                break;
+            } else {
+                await scrollAndClickElement(page, "li[aria-label='Next']");
+                await page.waitForTimeout(5000);
+            }
+
         }
 
-        // if((product["Price reduction variation"]).toString() !== "notData") {
-        //     await scrollAndClickElement(page,"div[data-uid='productsearch:div_onclicksearchicon:27e8f']");
-        //     await delayTime(3000);
-        //
-        //     for (let id of idProducts) {
-        //         await smoothScrollToTop(page,"div.theme-arco-table-content-scroll div.theme-arco-table-content-inner div.theme-arco-table-body")
-        //         console.log(id)
-        //         await fillInput(page, "div[data-uid='productsearch:div_onclicksearchicon:27e8f'] input.theme-arco-input", id);
-        //         await delayTime(3000);
-        //
-        //         await scrollToBottom(page,"div.theme-arco-table-content-scroll div.theme-arco-table-content-inner div.theme-arco-table-body")
-        //
-        //         for (let data of await parseSizes((product["Price reduction variation"]).toString())) {
-        //             console.log(data)
-        //         }
-        //         const data = await extractTextFromElements(page, 'div.pl-40');
-        //         console.log(data);
-        //     }
-        // }
-
-        // await setTimeLine(page,1);
-        // await setTimeLine(page,2);
+        if (product['Thời gian bắt đầu'] !== 'noData') {
+            await setTimeLine(page,1);
+            await setTimeLine(page,2);
+        }
 
         // Selector cho button.theme-arco-btn trong cấu trúc HTML
         const buttonSelectorAgreeFLS = "div.flex.justify-between.items-center div.flex.justify-end.items-center div button.theme-arco-btn";
-
-// Lấy tất cả các button trong vùng cha
         const buttons = await page.$$(buttonSelectorAgreeFLS);
 
-// Kiểm tra nếu có button
         if (buttons.length > 0) {
             // Chọn phần tử cuối cùng
             const lastButton = buttons[buttons.length - 1];
-
             // Click vào button cuối cùng
-            // await lastButton.click();
+            await lastButton.click();
             console.log("Clicked on the last button.");
         } else {
             console.log("No buttons found.");
         }
 
-        console.log(`✅ Đã hoàn tất xử lý cho sản phẩm của ${nameAcc}`);
-        await delayTime(10000); // Delay 10s giữa các lần mở trang
-        // await closeBrowser(nameAcc);
+        // await closeBrowser(product["Name Acc"]);
+    });
 
-    },
-    5000 // Delay 5s giữa các dòng của cùng 1 acc
-);
+    // Chờ tất cả các tài khoản trong nhóm hoàn thành
+    await Promise.all(promises);
+}
 
 async function setTimeLine(page,check) {
     const timeSetFLS = await getFormattedDate(check);
@@ -284,18 +160,6 @@ async function setTimeLine(page,check) {
     const itemSelectorSetTimeDiscount = "button.theme-arco-btn";
     await scrollAndClickByText(page, menuSelectorSetTimeDiscount, itemSelectorSetTimeDiscount, 'Select time');
     await delayTime(3000);
-    // for (let i = 1; i<= 3; i++) {
-    //     const menuSelectorSetTime = "div.theme-arco-picker-container ul";
-    //     const itemSelectorSetTime = "li.theme-arco-timepicker-cell";
-    //     if (i == 1) {
-    //         await scrollAndClickByText(page, menuSelectorSetTime, itemSelectorSetTime, timeSetFLS.hour);
-    //     } else if (i == 2) {
-    //         await scrollAndClickByText(page, menuSelectorSetTime, itemSelectorSetTime, timeSetFLS.minute);
-    //     } else {
-    //         await scrollAndClickByText(page, menuSelectorSetTime, itemSelectorSetTime, timeSetFLS.period);
-    //     }
-    //     await delayTime(3000);
-    // }
 
     const menuSelectorSetTime = "div.theme-arco-picker-container ul";  // Tìm tất cả các vùng
     const itemSelectorSetTime = "li.theme-arco-timepicker-cell"; // Các mục trong mỗi vùng
@@ -338,5 +202,14 @@ async function setTimeLine(page,check) {
     await delayTime(3000);
 }
 
+// Hàm chạy tất cả các nhóm tài khoản
+async function run() {
+    for (let group of accGroups) {
+        await processAccountGroup(group); // Xử lý nhóm tài khoản
+        console.log("Finished processing a group of accounts");
+    }
+}
 
+// Chạy hàm
+await run();
 
