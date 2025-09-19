@@ -62,6 +62,11 @@ async function processAccountGroup(group) {
         let productModal = [];
 
         for (let i = 0; i < 100000; i++) {
+            const numberOfRows = await page.$$eval('tbody tr.core-table-tr', rows => rows.length);
+            console.log(`Number of rows in the table: ${numberOfRows}`);
+            if (numberOfRows <= 0) {
+                break;
+            }
             const newProducts = await page.$$eval('tbody tr.core-table-tr', rows => {
                 return rows.map(row => {
                     // Tạo đối tượng để lưu trữ dữ liệu
@@ -110,9 +115,6 @@ async function processAccountGroup(group) {
 
             products = await products.concat(newProducts);
 
-            const numberOfRows = await page.$$eval('tbody tr.core-table-tr', rows => rows.length);
-            console.log(`Number of rows in the table: ${numberOfRows}`);
-
             for (let i=0; i <numberOfRows; i++) {
                 const buttons = await page.$$('button.core-btn.core-btn-secondary');
                 await buttons[i].click();
@@ -149,34 +151,37 @@ async function processAccountGroup(group) {
         }
 
         console.log("da thoat vong lap");
-        const combinedData = products.map((product, index) => {
-            const modal = productModal[index];  // Lấy phần tử tương ứng từ modalData
+        if (products.length > 0) {
+            const combinedData = products.map((product, index) => {
+                const modal = productModal[index];  // Lấy phần tử tương ứng từ modalData
 
-            return {
-                ...product,  // Giữ lại tất cả các trường từ productData
-                productName: modal.productName,  // Thêm tên sản phẩm từ modal
-                productId: modal.productId  // Thêm ID sản phẩm từ modal
-            };
-        });
+                return {
+                    ...product,  // Giữ lại tất cả các trường từ productData
+                    productName: modal.productName,  // Thêm tên sản phẩm từ modal
+                    productId: modal.productId  // Thêm ID sản phẩm từ modal
+                };
+            });
 
-        console.log('Combined Data:', combinedData);
-        // console.log(products);
+            console.log('Combined Data:', combinedData);
+            // console.log(products);
 
-        const columns = [
-            { header: 'Tên gậy', key: 'nameGay' },
-            { header: 'ID gậy', key: 'idGay' },
-            { header: 'Lý do vi phạm', key: 'violationReason' },
-            { header: 'Tên sản phẩm', key: 'productName' },
-            { header: 'ID sản phẩm', key: 'productId' },
-            { header: 'Ngày bị gậy', key: 'dateVio' },
-            { header: 'Trạng thái', key: 'status' }
-        ];
+            const columns = [
+                { header: 'Tên gậy', key: 'nameGay' },
+                { header: 'ID gậy', key: 'idGay' },
+                { header: 'Lý do vi phạm', key: 'violationReason' },
+                { header: 'Tên sản phẩm', key: 'productName' },
+                { header: 'ID sản phẩm', key: 'productId' },
+                { header: 'Ngày bị gậy', key: 'dateVio' },
+                { header: 'Trạng thái', key: 'status' }
+            ];
 
-        const output = './../Output/checkVio/checkVio' + product["Name Acc"] + '.xlsx';
-        const outputRoot = './../Output/checkVio/';
-        await processTableData(columns, combinedData, output, outputRoot);
+            const output = './../Output/checkVio/checkVio' + product["Name Acc"] + '.xlsx';
+            const outputRoot = './../Output/checkVio/';
+            await processTableData(columns, combinedData, output, outputRoot);
+        }
 
-        // await closeBrowser(product["Name Acc"]);
+
+        await closeBrowser(product["Name Acc"]);
     });
 
     // Chờ tất cả các tài khoản trong nhóm hoàn thành
