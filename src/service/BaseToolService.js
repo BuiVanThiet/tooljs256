@@ -240,7 +240,7 @@ export async function closeBrowser(accountName) {
 export async function fillInput(page, selector, value) {
     try {
         // Chờ cho ô input xuất hiện trên trang
-        const element = await page.waitForSelector(selector, { timeout: 5000, state: 'visible' });
+        const element = await page.waitForSelector(selector, { timeout: 10000, state: 'visible' });
 
         if (element) {
             const inputElement = await page.$(selector);

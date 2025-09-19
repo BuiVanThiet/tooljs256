@@ -9,8 +9,14 @@ import {
     scrollAndClickElement,
     checkIfElementIsDisabled,
     waitForElement,
-    fillInput, delayTime
+    fillInput, delayTime,
+    getFormattedDate,
+    scrollAndClickByText
 } from "../src/service/BaseToolService.js";
+import {
+    showConfirm
+} from "../src/service/ConfirmService.js";
+
 import { readExcelFile } from "../src/service/openFileExcel.js";
 
 const hide = new Hidemyacc();
@@ -84,17 +90,18 @@ async function processAccountGroup(group) {
         await delayTime(3000);
 
         for (let i = 0; i < 100000; i++) {
-            const elementClịckAllProductDiscount = await page.$$('div.theme-arco-radio-group label.theme-arco-radio.theme-m4b-radio');
-            await elementClịckAllProductDiscount[0].click();
+
+            const clickAllProductDis = await page.$$('tr.theme-arco-table-tr th.theme-arco-table-checkbox div.theme-arco-table-th-item label.theme-arco-checkbox');
+            await clickAllProductDis[0].click();
             await delayTime(2000);
 
             const elementClịckDeal = await page.$$('div.flex.items-center.mt-8 div.theme-m4b-input-group-select div.theme-m4b-select-has-tooltip-error');
             await elementClịckDeal[0].click();
             await delayTime(2000);
 
-            const elementClickDiscountType = await page.$$('div#theme-arco-select-popup-4 li.theme-arco-select-option');
+            const elementClickDiscountType = await page.$$('li.theme-arco-select-option');
             let discountType = product["Discount type\n(Điền số 1: %;\nĐiền số 2: tiền;)"];
-            if (discountType === 1) {
+            if (discountType === '1') {
                 await elementClickDiscountType[1].click();
             } else {
                 await elementClickDiscountType[0].click();
@@ -102,12 +109,13 @@ async function processAccountGroup(group) {
             await delayTime(2000);
 
             if (i === 0) {
-                await fillInput(page,"div[data-tid=\"m4b_input_group\"] span.theme-arco-input-inner-wrapper.theme-arco-input-inner-wrapper-has-prefix input",product["Price reduction"])
+                await fillInput(page,"div.custom-input-number-wrapper div.theme-arco-input-group-wrapper.theme-arco-input-group-wrapper-default span.theme-arco-input-group span.theme-arco-input-inner-wrapper.theme-arco-input-inner-wrapper-default input",product["Price reduction"])
                 await delayTime(2000);
             }
 
             const elementUpdatePrice = await page.$$('div.flex.justify-between.items-end.mt-20 div.flex.items-center button.theme-arco-btn.theme-arco-btn-secondary');
             await elementUpdatePrice[0].click();
+            console.log("da an update")
             await delayTime(2000);
 
             if (await checkIfElementIsDisabled(page, "li[aria-label='Next']") === false) {
@@ -138,7 +146,13 @@ async function processAccountGroup(group) {
             console.log("No buttons found.");
         }
 
-        // await closeBrowser(product["Name Acc"]);
+        const captchaTitle = await page.$eval('div.captcha_verify_bar--title', element => element.innerText);
+
+        if (captchaTitle === 'Verify to continue:') {
+            await showConfirm()
+        }
+
+        await closeBrowser(product["Name Acc"]);
     });
 
     // Chờ tất cả các tài khoản trong nhóm hoàn thành

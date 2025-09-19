@@ -8,7 +8,8 @@ import {
     processTableData,
     scrollAndClickElement,
     checkIfElementIsDisabled,
-    waitForElement
+    waitForElement,
+    delayTime
 } from "../src/service/BaseToolService.js";
 import { readExcelFile } from "../src/service/openFileExcel.js";
 
@@ -47,18 +48,20 @@ async function processAccountGroup(group) {
             timeout: 120000
         });
 
+        const isElementFound = await waitForElement(page, 'tbody tr.core-table-tr', 10000); // Chờ tối đa 10s
+        if (!isElementFound) {
+            console.log('No element found within 10 seconds, breaking out.');
+            await closeBrowser(product["Name Acc"]);
+            return;
+        } else {
+            delayTime(3000);
+        }
+
         // Lấy tất cả các hàng trong bảng
         let products = [];
+        let productModal = [];
 
         for (let i = 0; i < 100000; i++) {
-            console.log("da vao vong lap " + i);
-            const isElementFound = await waitForElement(page, 'tbody tr.core-table-tr', 10000); // Chờ tối đa 10s
-
-            if (!isElementFound) {
-                console.log('No element found within 10 seconds, breaking out.');
-                break; // Nếu không tìm thấy phần tử, thoát vòng lặp
-            }
-
             const newProducts = await page.$$eval('tbody tr.core-table-tr', rows => {
                 return rows.map(row => {
                     // Tạo đối tượng để lưu trữ dữ liệu
@@ -82,7 +85,8 @@ async function processAccountGroup(group) {
                         const status = tds[3]?.querySelector('div.text-base.text-gray-1.font-regular.flex.flex-col.break-normal div.text-p3-regular.text-neutral-text3')?.innerText.trim() || 'Unknown';
                         const timeStatus = tds[3]?.querySelector('div.text-base.text-gray-1.font-regular.flex.flex-col.break-normal div.text-p3-regular.text-neutral-text3 div.flex div div.text-neutral-text3')?.innerText.trim() || 'Unknown';
 
-                        // Lấy ngày giờ hiện tại
+                        console.log('status: '+status)
+
                         const now = new Date();
                         const hours = now.getHours().toString().padStart(2, '0');
                         const minutes = now.getMinutes().toString().padStart(2, '0');
@@ -90,24 +94,51 @@ async function processAccountGroup(group) {
                         const day = now.getDate().toString().padStart(2, '0');
                         const month = (now.getMonth() + 1).toString().padStart(2, '0');
                         const year = now.getFullYear();
-
                         data.nameGay = nameGay;
                         data.idGay = idGay.replace('ID: ', '');
                         data.violationReason = violationReason;
                         data.dateVio = formattedDate;
                         data.status = status.replace('\n', ', ') + (timeStatus === 'Unknown' ? '' : '(' + timeStatus + ')');
                         data.getDate = `${hours}:${minutes}:${seconds}-${day}/${month}/${year}`;
-
                         return data;
                     } else {
                         console.log('No <td> elements found in row.');
                         return null; // Nếu không có cột nào, trả về null hoặc dữ liệu mặc định
                     }
                 }).filter(item => item !== null);  // Loại bỏ các null nếu có
-
             });
 
             products = await products.concat(newProducts);
+
+            const numberOfRows = await page.$$eval('tbody tr.core-table-tr', rows => rows.length);
+            console.log(`Number of rows in the table: ${numberOfRows}`);
+
+            for (let i=0; i <numberOfRows; i++) {
+                const buttons = await page.$$('button.core-btn.core-btn-secondary');
+                await buttons[i].click();
+                await delayTime(3000);
+                const checkNameProduct = await waitForElement(page, 'div.flex.flex-col div.text-p3-regular.text-neutral-text1.cursor-default div.flex.mt-4 div.ml-8.text-p3-regular p:nth-child(1)', 5000); // Chờ tối đa 10s
+                if (checkNameProduct) {
+                    const modalData = await page.evaluate(() => {
+                        // Lấy tên sản phẩm và ID sản phẩm từ modal
+                        const productName = document.querySelector('div.flex.flex-col div.text-p3-regular.text-neutral-text1.cursor-default div.flex.mt-4 div.ml-8.text-p3-regular p:nth-child(1)')?.innerText.trim() || 'Unknown';
+                        const productId = document.querySelector('div.flex.flex-col div.text-p3-regular.text-neutral-text1.cursor-default div.flex.mt-4 div.ml-8.text-p3-regular p:nth-child(2)')?.innerText.trim().replace('Product ID: ', '') || 'Unknown';
+
+                        return { productName, productId }; // Trả về tên sản phẩm và ID sản phẩm
+                    });
+                    productModal = await productModal.concat(modalData);
+                    console.log('Modal Data:', modalData);  // In ra dữ liệu tên và ID sản phẩm
+                }
+
+                const closeButtons = await page.$$('div.core-drawer-inner div.core-drawer-scroll span.core-icon-hover.core-drawer-close-icon');
+                if (closeButtons.length > 0) {
+                    await closeButtons[0].click(); // Nhấn vào phần tử đầu tiên
+                    await delayTime(3000)
+                    console.log('Close button clicked');
+                } else {
+                    console.log('Close button not found');
+                }
+            }
 
             if (await checkIfElementIsDisabled(page, "li[aria-label='Next']") === false) {
                 break;
@@ -118,22 +149,34 @@ async function processAccountGroup(group) {
         }
 
         console.log("da thoat vong lap");
-        console.log(products);
+        const combinedData = products.map((product, index) => {
+            const modal = productModal[index];  // Lấy phần tử tương ứng từ modalData
+
+            return {
+                ...product,  // Giữ lại tất cả các trường từ productData
+                productName: modal.productName,  // Thêm tên sản phẩm từ modal
+                productId: modal.productId  // Thêm ID sản phẩm từ modal
+            };
+        });
+
+        console.log('Combined Data:', combinedData);
+        // console.log(products);
 
         const columns = [
             { header: 'Tên gậy', key: 'nameGay' },
             { header: 'ID gậy', key: 'idGay' },
             { header: 'Lý do vi phạm', key: 'violationReason' },
+            { header: 'Tên sản phẩm', key: 'productName' },
+            { header: 'ID sản phẩm', key: 'productId' },
             { header: 'Ngày bị gậy', key: 'dateVio' },
-            { header: 'Trạng thái', key: 'status' },
-            { header: 'Ngày chạy', key: 'getDate' }
+            { header: 'Trạng thái', key: 'status' }
         ];
 
         const output = './../Output/checkVio/checkVio' + product["Name Acc"] + '.xlsx';
         const outputRoot = './../Output/checkVio/';
-        await processTableData(columns, products, output, outputRoot);
+        await processTableData(columns, combinedData, output, outputRoot);
 
-        await closeBrowser(product["Name Acc"]);
+        // await closeBrowser(product["Name Acc"]);
     });
 
     // Chờ tất cả các tài khoản trong nhóm hoàn thành

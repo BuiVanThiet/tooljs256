@@ -351,14 +351,14 @@ async function processAccountGroup(group) {
         // Lấy tất cả các hàng trong bảng
         let products = [];
 
-        for (let i = 0; i < 100000; i++) {
-            console.log("da vao vong lap " + i);
-            const isElementFound = await waitForElement(page, 'tbody tr.core-table-tr.core-table-row-expanded', 30000); // Chờ tối đa 10s
+        const isElementFound = await waitForElement(page, 'tbody tr.core-table-tr.core-table-row-expanded', 10000); // Chờ tối đa 10s
+        if (!isElementFound) {
+            console.log('No element found within 10 seconds, breaking out.');
+            await closeBrowser(product["Name Acc"]);
+            return;
+        }
 
-            if (!isElementFound) {
-                console.log('No element found within 10 seconds, breaking out.');
-                break; // Nếu không tìm thấy phần tử, thoát vòng lặp
-            }
+        for (let i = 0; i < 100000; i++) {
 
             const newProducts = await page.$$eval('tbody tr.core-table-tr.core-table-row-expanded', rows => {
                 return rows.map(row => {
