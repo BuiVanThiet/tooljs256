@@ -221,9 +221,6 @@ function chunkArray(array, size) {
     return result;
 }
 
-// Giới hạn số lượng tài khoản xử lý song song (threads)
-// const THREAD_LIMIT = 2; // Số lượng tài khoản xử lý đồng thời (ví dụ, 2 tài khoản)
-
 // Đọc tham số --thread từ dòng lệnh
 const args = process.argv.slice(2);
 const threadLimit = args.find(arg => arg.startsWith('--thread='));
