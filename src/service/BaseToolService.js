@@ -2,6 +2,8 @@
 import ExcelJS from 'exceljs';
 import fs from 'fs';
 import path from 'path';
+import Hidemyacc from "../hidemyacc.js";
+
 
 import axios from "axios";
 import { chromium } from 'playwright'; // Thay puppeteer bằng playwright
@@ -191,6 +193,46 @@ export async function scrollAndClickElement(page, selector) {
         }
     } catch (e) {
         console.log("Lỗi khi thao tác với phần tử:", e);
+    }
+}
+
+export async function scrollAndClickElementByIndex(
+    page,
+    selector,
+    position) {
+    try {
+
+        const idx = position - 1; // chuyển sang 0-based cho .nth()
+        const list = page.locator(selector);
+        const count = await list.count();
+
+        if (count === 0) {
+            console.log(`Không tìm thấy phần tử với selector: ${selector}`);
+            return;
+        }
+        if (idx >= count) {
+            console.log(
+                `Chỉ tìm thấy ${count} phần tử, nhưng yêu cầu vị trí ${position}. Selector: ${selector}`
+            );
+            return;
+        }
+
+        const target = list.nth(idx);
+
+        // Chờ phần tử trở nên "visible" và có thể tương tác
+        await target.waitFor({ state: 'visible', timeout: 10000 });
+
+        // Lướt tới phần tử
+        await target.scrollIntoViewIfNeeded();
+
+        const text = await target.innerText().catch(() => '');
+        console.log(`Lướt đến phần tử [#${position}]: ${text?.slice(0, 120)}`);
+
+        // Click
+        await target.click();
+        console.log(`Đã click vào phần tử [#${position}] của selector: ${selector}`);
+    } catch (e) {
+        console.log('Lỗi khi thao tác với phần tử:', e);
     }
 }
 
@@ -893,6 +935,16 @@ export async function processTableData(colum,data,output,outputRoot) {
     // console.log(`File Excel đã được tạo tại ${outputPath} với sheet tên là ${sheetName}`);
 }
 
+
+// Hàm để chia tài khoản thành các nhóm tối đa 3 tài khoản
+export function chunkArray(array, size) {
+    const result = [];
+    for (let i = 0; i < array.length; i += size) {
+        result.push(array.slice(i, i + size));
+    }
+    return result;
+}
+export const hide = new Hidemyacc();
 
 
 export const delayTime = (ms) => delay(ms); // Sử dụng lại delay cho các bước khác
