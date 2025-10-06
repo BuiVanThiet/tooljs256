@@ -163,7 +163,15 @@ async function processAccountGroup(group) {
         }
         console.log(`Position for account ${product["Name Acc"]}: { x: ${toaDoX}, y: ${toaDoY} }`+'index: '+index);
 
-        const { browser, context } = await loginToProfile(hide, profileId, { x: toaDoX, y: toaDoY });
+        // const { browser, context } = await loginToProfile(hide, profileId, { x: toaDoX, y: toaDoY });
+        const result = await loginToProfile(hide, profileId, { x: toaDoX, y: toaDoY });
+
+        if (!result) {
+            console.log(`⚠️ Không thể login cho account ${profileId}. Bỏ qua.`);
+            return; // hoặc tiếp tục vòng lặp nếu đang trong loop
+        }
+
+        const { browser, context } = result;
 
         if (!browser || !context) return;
 

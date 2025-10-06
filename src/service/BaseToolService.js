@@ -75,33 +75,69 @@ const setBrowserPosition = (index) => {
 
 // Hàm đăng nhập vào tài khoản và khởi tạo trình duyệt
 export async function loginToProfile(hide, profileId, screenIndex) {
-    let start = null;
-    console.log(screenIndex)
+    // let start = null;
+    // console.log(screenIndex)
+    // const { x, y } = screenIndex;
+    // while (!start) {
+    //     start = await hide.start(
+    //         profileId,
+    //         JSON.stringify({
+    //             // params: "--force-device-scale-factor=0.4 --window-size=1280,720 --window-position=" + (screenIndex) // Tính toán vị trí cửa sổ
+    //             params: `--force-device-scale-factor=0.4 --window-size=1280,720 --window-position=${x},${y}`
+    //
+    //         })
+    //     );
+    //     if (!start) await delayTime(5000);
+    // }
+    //
+    // console.log("start.data.wsUrl: ", start.data.wsUrl);
+    // const wsUrl = start.data.wsUrl;
+    // if (!wsUrl) {
+    //     console.log("Không nhận được wsUrl từ API.");
+    //     return null;
+    // }
+    //
+    // // Kết nối đến trình duyệt qua CDP
+    // const browser = await chromium.connectOverCDP(wsUrl);
+    // const context = await browser.contexts()[0];
+    //
+    // return { browser, context };
+
     const { x, y } = screenIndex;
-    while (!start) {
-        start = await hide.start(
-            profileId,
-            JSON.stringify({
-                // params: "--force-device-scale-factor=0.4 --window-size=1280,720 --window-position=" + (screenIndex) // Tính toán vị trí cửa sổ
-                params: `--force-device-scale-factor=0.4 --window-size=1280,720 --window-position=${x},${y}`
 
-            })
-        );
-        if (!start) await delayTime(5000);
-    }
+    // Tạo promise timeout 50s
+    const timeoutPromise = new Promise(resolve => setTimeout(() => resolve(null), 50000));
 
-    console.log("start.data.wsUrl: ", start.data.wsUrl);
-    const wsUrl = start.data.wsUrl;
-    if (!wsUrl) {
-        console.log("Không nhận được wsUrl từ API.");
-        return null;
-    }
+    // Promise chính thực hiện login
+    const loginPromise = (async () => {
+        let start = null;
+        while (!start) {
+            start = await hide.start(
+                profileId,
+                JSON.stringify({
+                    params: `--force-device-scale-factor=0.4 --window-size=1280,720 --window-position=${x},${y}`
+                })
+            );
+            if (!start) await delayTime(5000); // đợi 5 giây rồi thử lại
+        }
 
-    // Kết nối đến trình duyệt qua CDP
-    const browser = await chromium.connectOverCDP(wsUrl);
-    const context = await browser.contexts()[0];
+        console.log("start.data.wsUrl: ", start.data.wsUrl);
+        const wsUrl = start.data.wsUrl;
+        if (!wsUrl) {
+            console.log("Không nhận được wsUrl từ API.");
+            return null;
+        }
 
-    return { browser, context };
+        // Kết nối đến trình duyệt qua CDP
+        const browser = await chromium.connectOverCDP(wsUrl);
+        const context = await browser.contexts()[0];
+
+        return { browser, context };
+    })();
+
+    // Chạy cả hai promise, timeout sẽ thắng nếu quá 50s
+    return await Promise.race([loginPromise, timeoutPromise]);
+
 }
 
 // Hàm mở trang sản phẩm và kiểm tra URL
